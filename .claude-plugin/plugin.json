@@ -1,0 +1,6 @@
+{
+  "name": "rsp-plugin",
+  "description": "RentSpree Claude Code Plugin — shared skills, commands, agents, and hooks for the RentSpree engineering team.",
+  "author": "RentSpree Engineering",
+  "version": "0.1.0"
+}
