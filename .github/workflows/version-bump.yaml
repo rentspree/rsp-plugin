@@ -1,0 +1,203 @@
+name: Auto Version Bump
+run-name: "[Automated] Version Bump for rsp-plugin"
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.CICD_APP_ID }}
+          private-key: ${{ secrets.CICD_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Get current version
+        id: current_version
+        run: |
+          if [ -f VERSION ]; then
+            current_version=$(cat VERSION)
+            echo "version=$current_version" >> $GITHUB_OUTPUT
+            echo "## 📋 Current Version" >> $GITHUB_STEP_SUMMARY
+            echo "Current version: **$current_version**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "version=0.1.0" >> $GITHUB_OUTPUT
+            echo "## 📋 Current Version" >> $GITHUB_STEP_SUMMARY
+            echo "No VERSION file found, initializing with: **0.1.0**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Determine version bump type from PR labels
+        id: bump_type
+        run: |
+          echo "## 🏷️ Version Bump Detection" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            bump_type="${{ github.event.inputs.version_type }}"
+            echo "type=$bump_type" >> $GITHUB_OUTPUT
+            echo "**Source:** Manual workflow dispatch" >> $GITHUB_STEP_SUMMARY
+            echo "**Bump type:** $bump_type" >> $GITHUB_STEP_SUMMARY
+          else
+            labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
+            echo "**Source:** PR labels from #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+            echo "**PR Title:** ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Labels found:** $labels" >> $GITHUB_STEP_SUMMARY
+
+            if echo "$labels" | grep -q "version:major"; then
+              echo "type=major" >> $GITHUB_OUTPUT
+              echo "**Bump type:** major (breaking changes)" >> $GITHUB_STEP_SUMMARY
+            elif echo "$labels" | grep -q "version:minor"; then
+              echo "type=minor" >> $GITHUB_OUTPUT
+              echo "**Bump type:** minor (new features)" >> $GITHUB_STEP_SUMMARY
+            elif echo "$labels" | grep -q "version:patch"; then
+              echo "type=patch" >> $GITHUB_OUTPUT
+              echo "**Bump type:** patch (bug fixes)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "type=minor" >> $GITHUB_OUTPUT
+              echo "**Bump type:** minor (default - no version label found)" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+      - name: Bump version
+        id: new_version
+        run: |
+          echo "## 🔢 Version Calculation" >> $GITHUB_STEP_SUMMARY
+
+          python3 - <<EOF
+          import json
+
+          current = "${{ steps.current_version.outputs.version }}"
+          bump_type = "${{ steps.bump_type.outputs.type }}"
+
+          major, minor, patch = map(int, current.split('.'))
+          old_version = f"{major}.{minor}.{patch}"
+
+          if bump_type == 'major':
+              major += 1
+              minor = 0
+              patch = 0
+          elif bump_type == 'minor':
+              minor += 1
+              patch = 0
+          else:
+              patch += 1
+
+          new_version = f"{major}.{minor}.{patch}"
+
+          # Update VERSION file
+          with open('VERSION', 'w') as f:
+              f.write(new_version)
+
+          # Update plugin.json version
+          with open('.claude-plugin/plugin.json', 'r') as f:
+              plugin = json.load(f)
+          plugin['version'] = new_version
+          with open('.claude-plugin/plugin.json', 'w') as f:
+              json.dump(plugin, f, indent=2)
+              f.write('\n')
+
+          with open('step_summary.txt', 'w') as f:
+              f.write(f"**Previous:** {old_version}\n")
+              f.write(f"**New:** {new_version}\n")
+              f.write(f"**Change:** {old_version} → {new_version}\n")
+          EOF
+
+          cat step_summary.txt >> $GITHUB_STEP_SUMMARY
+
+      - name: Get new version
+        id: get_new_version
+        run: |
+          new_version=$(cat VERSION)
+          echo "version=$new_version" >> $GITHUB_OUTPUT
+
+      - name: Get GitHub App User ID
+        id: get-user-id
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const result = await github.rest.users.getByUsername({
+              username: '${{ steps.app-token.outputs.app-slug }}[bot]'
+            })
+            return result.data.id
+
+      - name: Config git
+        run: |
+          git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.get-user-id.outputs.result }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+
+      - name: Commit version bump
+        run: |
+          echo "## 📝 Git Operations" >> $GITHUB_STEP_SUMMARY
+
+          git add VERSION .claude-plugin/plugin.json
+
+          commit_message="[Automated] chore: bump version to ${{ steps.get_new_version.outputs.version }}"
+          tag_name="v${{ steps.get_new_version.outputs.version }}"
+
+          git commit -m "$commit_message"
+          git tag "$tag_name"
+
+          echo "**Commit:** $commit_message" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag created:** $tag_name" >> $GITHUB_STEP_SUMMARY
+
+          git push origin main
+          git push origin "$tag_name"
+
+          echo "**Status:** ✅ Successfully pushed commit and tag" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_new_version.outputs.version }}
+          release_name: v${{ steps.get_new_version.outputs.version }}
+          body: |
+            ## Changes
+            Merged PR: ${{ github.event.pull_request.title }} #${{ github.event.pull_request.number }}
+
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.current_version.outputs.version }}...v${{ steps.get_new_version.outputs.version }}
+          draft: false
+          prerelease: false
+
+      - name: Workflow Summary
+        run: |
+          echo "## ✅ Workflow Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Old Version | ${{ steps.current_version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| New Version | ${{ steps.get_new_version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bump Type | ${{ steps.bump_type.outputs.type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release | [v${{ steps.get_new_version.outputs.version }}](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_new_version.outputs.version }}) |" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,66 @@
+name: Auto Label PRs
+run-name: "[Automated] Auto labeling for PR#${{ github.event.pull_request.number }}"
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  add-default-label:
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.CICD_APP_ID }}
+          private-key: ${{ secrets.CICD_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Check for existing version:* label
+        id: check-label
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const labels = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const versionLabel = labels.data.find(label =>
+              label.name.startsWith('version:')
+            );
+
+            const found = Boolean(versionLabel);
+            core.setOutput("hasVersionLabel", found.toString());
+
+            const fs = require('fs');
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## 🔍 Version Label Check\n`);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- PR #: **${context.issue.number}**\n`);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- Existing labels: ${labels.data.map(l => l.name).join(', ') || 'None'}\n`);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- Found \`version:*\` label: **${found ? 'Yes' : 'No'}**\n`);
+
+      - name: Add version:minor label if none exists
+        if: steps.check-label.outputs.hasVersionLabel == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['version:minor']
+            });
+
+            const fs = require('fs');
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## 🏷️ Label Added\n`);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- Applied label: \`version:minor\`\n`);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- PR #: **${context.issue.number}**\n`);
