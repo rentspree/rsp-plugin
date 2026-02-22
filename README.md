@@ -1,32 +1,54 @@
-# rsp-plugin
+# claude-plugins
 
-RentSpree Claude Code Plugin — shared skills, commands, agents, and hooks for the RentSpree engineering team.
+RentSpree Claude Code Plugin Marketplace — a collection of plugin packages for the RentSpree engineering team. Developers install only the plugins they need.
 
 ## Install
 
 ```
-/plugin install rsp-plugin@rentspree
+# Add the marketplace
+/plugin marketplace add rentspree/claude-plugins
+
+# Install a specific plugin package
+/plugin install rsp-plugins@rentspree
 ```
 
 ## Structure
 
 ```
-rsp-plugin/
+claude-plugins/
 ├── .claude-plugin/
-│   └── plugin.json              # Plugin metadata (required)
-├── commands/
-│   └── example-command.md       # Slash commands (e.g. /morning-brew)
-├── skills/
-│   └── example-skill/
-│       ├── SKILL.md             # Skills with @include support
-│       └── CONVENTIONS.md       # Included conventions file
-├── agents/
-│   └── example-agent.md         # Autonomous agents
-├── hooks/
-│   └── example-hook.sh          # Lifecycle hook scripts
+│   └── marketplace.json             # Marketplace catalog (required)
+├── plugins/
+│   └── rsp-plugins/                 # Plugin package
+│       ├── .claude-plugin/
+│       │   └── plugin.json          # Plugin metadata (required)
+│       ├── commands/
+│       │   └── example-command.md   # Slash commands
+│       ├── skills/
+│       │   └── example-skill/
+│       │       ├── SKILL.md         # Skills with @include support
+│       │       └── CONVENTIONS.md
+│       ├── agents/
+│       │   └── example-agent.md     # Autonomous agents
+│       └── hooks/
+│           └── example-hook.sh      # Lifecycle hook scripts
+├── .github/
+│   ├── workflows/
+│   │   ├── version-bump.yaml
+│   │   └── default-label.yaml
+│   └── copilot-instructions.md
+├── VERSION
+├── AGENTS.md
+├── CLAUDE.md
 ├── README.md
 └── CONTRIBUTING.md
 ```
+
+## Available Plugins
+
+| Package | Description | Install |
+|---------|-------------|---------|
+| `rsp-plugins` | Core RentSpree plugins — skills, commands, agents, and hooks | `/plugin install rsp-plugins@rentspree` |
 
 ## Component Types
 
@@ -41,7 +63,7 @@ rsp-plugin/
 
 Hooks are **not** invoked by the user or agent directly. They are shell scripts registered in Claude Code settings that run automatically in response to lifecycle events (e.g. after a tool is used). They receive event data as JSON on stdin and can provide warnings or feedback.
 
-## Planned Plugins
+## Planned Plugins (rsp-plugins)
 
 | Name | Type | Status | Notion |
 |------|------|--------|--------|
@@ -56,6 +78,15 @@ Hooks are **not** invoked by the user or agent directly. They are shell scripts 
 | `mds-updater` | Agent | Planned | — |
 | Auto-Format/Lint | Hook | Planned | [link](https://www.notion.so/30a3b0bdee3e8029b34ac9617218373a) |
 
+## Adding a New Plugin Package
+
+To add a new plugin package (e.g. `infra-plugins`):
+
+1. Create `plugins/infra-plugins/.claude-plugin/plugin.json`
+2. Add component directories (`commands/`, `skills/`, `agents/`, `hooks/`)
+3. Register the plugin in `.claude-plugin/marketplace.json`
+4. Update the "Available Plugins" table above
+
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add new plugins.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add new components.

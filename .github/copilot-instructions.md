@@ -4,16 +4,21 @@
 
 **Authoritative Reference**: See `AGENTS.md` in repository root for architecture, conventions, and patterns.
 
-`rsp-plugin` is a Claude Code plugin containing markdown prompt files and shell scripts. No application code, build system, or dependencies.
+`claude-plugins` is a Claude Code plugin marketplace containing multiple plugin packages. Each package lives under `plugins/<name>/` and contains markdown prompt files and shell scripts. No application code, build system, or dependencies.
 
 ## PR Review Checklist
 
 ### File Location
-- [ ] Commands are in `commands/*.md`
-- [ ] Skills are in `skills/<name>/SKILL.md`
-- [ ] Agents are in `agents/*.md`
-- [ ] Hooks are in `hooks/*.sh`
+- [ ] Components are inside a valid plugin package (`plugins/<package>/`)
+- [ ] Commands are in `plugins/<package>/commands/*.md`
+- [ ] Skills are in `plugins/<package>/skills/<name>/SKILL.md`
+- [ ] Agents are in `plugins/<package>/agents/*.md`
+- [ ] Hooks are in `plugins/<package>/hooks/*.sh`
 - [ ] No files placed outside the expected directories
+
+### Plugin Package
+- [ ] New packages have a valid `.claude-plugin/plugin.json`
+- [ ] New packages are registered in `.claude-plugin/marketplace.json`
 
 ### Frontmatter
 - [ ] YAML frontmatter is present and valid
@@ -33,5 +38,6 @@
 - [ ] Hook scripts read stdin JSON and parse with `jq`
 
 ### Documentation
-- [ ] `README.md` catalog table updated if adding a new component
+- [ ] `README.md` catalog table updated if adding a new component or package
 - [ ] Status moved from "Planned" to "Available" for completed plugins
+- [ ] `marketplace.json` updated if adding a new plugin package

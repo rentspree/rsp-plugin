@@ -1,0 +1,14 @@
+{
+  "name": "claude-plugins",
+  "description": "RentSpree Claude Code Plugin Marketplace — a collection of plugin packages for the RentSpree engineering team.",
+  "author": "RentSpree Engineering",
+  "version": "0.1.0",
+  "plugins": [
+    {
+      "name": "rsp-plugins",
+      "path": "plugins/rsp-plugins",
+      "description": "Core RentSpree plugins — shared skills, commands, agents, and hooks.",
+      "version": "0.1.0"
+    }
+  ]
+}

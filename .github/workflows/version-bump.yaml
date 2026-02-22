@@ -1,5 +1,5 @@
 name: Auto Version Bump
-run-name: "[Automated] Version Bump for rsp-plugin"
+run-name: "[Automated] Version Bump for claude-plugins"
 
 on:
   pull_request:
@@ -47,18 +47,18 @@ jobs:
           if [ -f VERSION ]; then
             current_version=$(cat VERSION)
             echo "version=$current_version" >> $GITHUB_OUTPUT
-            echo "## 📋 Current Version" >> $GITHUB_STEP_SUMMARY
+            echo "## Current Version" >> $GITHUB_STEP_SUMMARY
             echo "Current version: **$current_version**" >> $GITHUB_STEP_SUMMARY
           else
             echo "version=0.1.0" >> $GITHUB_OUTPUT
-            echo "## 📋 Current Version" >> $GITHUB_STEP_SUMMARY
+            echo "## Current Version" >> $GITHUB_STEP_SUMMARY
             echo "No VERSION file found, initializing with: **0.1.0**" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Determine version bump type from PR labels
         id: bump_type
         run: |
-          echo "## 🏷️ Version Bump Detection" >> $GITHUB_STEP_SUMMARY
+          echo "## Version Bump Detection" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             bump_type="${{ github.event.inputs.version_type }}"
@@ -89,10 +89,11 @@ jobs:
       - name: Bump version
         id: new_version
         run: |
-          echo "## 🔢 Version Calculation" >> $GITHUB_STEP_SUMMARY
+          echo "## Version Calculation" >> $GITHUB_STEP_SUMMARY
 
           python3 - <<EOF
           import json
+          import glob
 
           current = "${{ steps.current_version.outputs.version }}"
           bump_type = "${{ steps.bump_type.outputs.type }}"
@@ -112,22 +113,33 @@ jobs:
 
           new_version = f"{major}.{minor}.{patch}"
 
-          # Update VERSION file
+          # Update root VERSION file
           with open('VERSION', 'w') as f:
               f.write(new_version)
 
-          # Update plugin.json version
-          with open('.claude-plugin/plugin.json', 'r') as f:
-              plugin = json.load(f)
-          plugin['version'] = new_version
-          with open('.claude-plugin/plugin.json', 'w') as f:
-              json.dump(plugin, f, indent=2)
+          # Update marketplace.json version
+          with open('.claude-plugin/marketplace.json', 'r') as f:
+              marketplace = json.load(f)
+          marketplace['version'] = new_version
+          for plugin_entry in marketplace.get('plugins', []):
+              plugin_entry['version'] = new_version
+          with open('.claude-plugin/marketplace.json', 'w') as f:
+              json.dump(marketplace, f, indent=2)
               f.write('\n')
+
+          # Update all plugin.json files under plugins/
+          for plugin_json_path in glob.glob('plugins/*/.claude-plugin/plugin.json'):
+              with open(plugin_json_path, 'r') as f:
+                  plugin = json.load(f)
+              plugin['version'] = new_version
+              with open(plugin_json_path, 'w') as f:
+                  json.dump(plugin, f, indent=2)
+                  f.write('\n')
 
           with open('step_summary.txt', 'w') as f:
               f.write(f"**Previous:** {old_version}\n")
               f.write(f"**New:** {new_version}\n")
-              f.write(f"**Change:** {old_version} → {new_version}\n")
+              f.write(f"**Change:** {old_version} -> {new_version}\n")
           EOF
 
           cat step_summary.txt >> $GITHUB_STEP_SUMMARY
@@ -156,9 +168,10 @@ jobs:
 
       - name: Commit version bump
         run: |
-          echo "## 📝 Git Operations" >> $GITHUB_STEP_SUMMARY
+          echo "## Git Operations" >> $GITHUB_STEP_SUMMARY
 
-          git add VERSION .claude-plugin/plugin.json
+          git add VERSION .claude-plugin/marketplace.json
+          git add plugins/*/.claude-plugin/plugin.json
 
           commit_message="[Automated] chore: bump version to ${{ steps.get_new_version.outputs.version }}"
           tag_name="v${{ steps.get_new_version.outputs.version }}"
@@ -172,7 +185,7 @@ jobs:
           git push origin main
           git push origin "$tag_name"
 
-          echo "**Status:** ✅ Successfully pushed commit and tag" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Successfully pushed commit and tag" >> $GITHUB_STEP_SUMMARY
 
       - name: Create release
         uses: actions/create-release@v1
@@ -191,7 +204,7 @@ jobs:
 
       - name: Workflow Summary
         run: |
-          echo "## ✅ Workflow Completed" >> $GITHUB_STEP_SUMMARY
+          echo "## Workflow Completed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
