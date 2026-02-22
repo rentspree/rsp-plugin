@@ -7,7 +7,7 @@ on:
 
 jobs:
   add-default-label:
-    runs-on: ubuntu-latest
+    runs-on: infra-non-prod-dind-low
 
     permissions:
       pull-requests: write
