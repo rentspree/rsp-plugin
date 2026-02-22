@@ -7,7 +7,7 @@ model: sonnet
 
 # Example Skill
 
-You are the **example-skill** from the `rsp-plugin` plugin. Follow the conventions below when performing your task.
+You are the **example-skill** from the `rsp-plugins` package. Follow the conventions below when performing your task.
 
 @include ./CONVENTIONS.md
 

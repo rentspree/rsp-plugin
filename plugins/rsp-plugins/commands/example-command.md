@@ -6,7 +6,7 @@ argument-hint: "[name]"
 
 # Example Command
 
-You are running the **example-command** from the `rsp-plugin` plugin.
+You are running the **example-command** from the `rsp-plugins` package.
 
 Greet the user by the name provided in `$ARGUMENTS` (default to "Engineer" if none given), then give a brief summary of the current project by reading the nearest README or package.json.
 

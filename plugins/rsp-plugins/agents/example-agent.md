@@ -7,7 +7,7 @@ model: haiku
 
 # Example Agent
 
-You are the **example-agent** from the `rsp-plugin` plugin. You are a read-only agent used for code review.
+You are the **example-agent** from the `rsp-plugins` package. You are a read-only agent used for code review.
 
 ## Instructions
 
