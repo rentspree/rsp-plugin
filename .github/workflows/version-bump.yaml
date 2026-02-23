@@ -153,7 +153,8 @@ jobs:
           else:
               summary_lines.append(f"**Marketplace:** {old_marketplace_version} (unchanged)")
 
-          # Bump each changed plugin
+          # Bump each changed plugin, track old/new versions
+          plugin_versions = {}  # plugin_name -> (old_version, new_version)
           for plugin_name in sorted(changed_plugins):
               plugin_json_path = f'plugins/{plugin_name}/.claude-plugin/plugin.json'
               if not os.path.exists(plugin_json_path):
@@ -165,6 +166,7 @@ jobs:
               old_version = plugin['version']
               new_version = bump(old_version, bump_type)
               plugin['version'] = new_version
+              plugin_versions[plugin_name] = (old_version, new_version)
 
               with open(plugin_json_path, 'w') as f:
                   json.dump(plugin, f, indent=2)
@@ -182,6 +184,54 @@ jobs:
           with open('.claude-plugin/marketplace.json', 'w') as f:
               json.dump(marketplace, f, indent=2)
               f.write('\n')
+
+          # Build per-tag release data with changed files
+          releases = []
+
+          if marketplace_changed:
+              root_files = [f for f in changed_files if not f.startswith('plugins/')]
+              releases.append({
+                  'tag': f"v{marketplace['version']}",
+                  'name': f"v{marketplace['version']}",
+                  'scope': 'marketplace',
+                  'old_version': old_marketplace_version,
+                  'new_version': marketplace['version'],
+                  'files': root_files,
+              })
+
+          for plugin_name in sorted(changed_plugins):
+              if plugin_name not in plugin_versions:
+                  continue
+              old_ver, new_ver = plugin_versions[plugin_name]
+              plugin_files = [f for f in changed_files if f.startswith(f'plugins/{plugin_name}/')]
+
+              # Categorize files by component type
+              categories = {'skills': [], 'agents': [], 'hooks': [], 'other': []}
+              for pf in plugin_files:
+                  # Strip the plugins/<name>/ prefix for display
+                  rel_path = pf.replace(f'plugins/{plugin_name}/', '', 1)
+                  if rel_path.startswith('skills/'):
+                      categories['skills'].append(rel_path)
+                  elif rel_path.startswith('agents/'):
+                      categories['agents'].append(rel_path)
+                  elif rel_path.startswith('hooks/'):
+                      categories['hooks'].append(rel_path)
+                  else:
+                      categories['other'].append(rel_path)
+
+              releases.append({
+                  'tag': f"{plugin_name}/v{new_ver}",
+                  'name': f"{plugin_name}/v{new_ver}",
+                  'scope': plugin_name,
+                  'old_version': old_ver,
+                  'new_version': new_ver,
+                  'files': plugin_files,
+                  'categories': categories,
+              })
+
+          # Write releases JSON for the release step
+          with open('releases.json', 'w') as f:
+              json.dump(releases, f)
 
           # Write outputs
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -248,17 +298,56 @@ jobs:
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
-            const tags = '${{ steps.bump_versions.outputs.tags }}'.split(',').filter(Boolean);
+            const fs = require('fs');
+            const releases = JSON.parse(fs.readFileSync('releases.json', 'utf8'));
             const prTitle = '${{ github.event.pull_request.title }}' || 'Manual dispatch';
             const prNumber = '${{ github.event.pull_request.number }}' || 'N/A';
+            const repo = `${context.repo.owner}/${context.repo.repo}`;
 
-            for (const tag of tags) {
+            for (const release of releases) {
+              let body = '';
+
+              if (release.scope === 'marketplace') {
+                body += `## Marketplace ${release.new_version}\n\n`;
+                body += `Merged PR: ${prTitle} #${prNumber}\n\n`;
+                if (release.files && release.files.length > 0) {
+                  body += `### Changed files\n`;
+                  for (const f of release.files) {
+                    body += `- \`${f}\`\n`;
+                  }
+                }
+              } else {
+                body += `## ${release.scope} ${release.new_version}\n\n`;
+                body += `Merged PR: ${prTitle} #${prNumber}\n\n`;
+
+                const cats = release.categories || {};
+                const sections = [
+                  { key: 'skills', label: 'Skills' },
+                  { key: 'agents', label: 'Agents' },
+                  { key: 'hooks', label: 'Hooks' },
+                  { key: 'other', label: 'Other' },
+                ];
+
+                for (const { key, label } of sections) {
+                  const files = cats[key] || [];
+                  if (files.length > 0) {
+                    body += `### ${label}\n`;
+                    for (const f of files) {
+                      body += `- \`${f}\`\n`;
+                    }
+                    body += `\n`;
+                  }
+                }
+              }
+
+              body += `\n**Full Changelog**: https://github.com/${repo}/compare/main~1...${release.tag}\n`;
+
               await github.rest.repos.createRelease({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                tag_name: tag,
-                name: tag,
-                body: `## Changes\nMerged PR: ${prTitle} #${prNumber}\n\n**Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main~1...${tag}`,
+                tag_name: release.tag,
+                name: release.name,
+                body: body,
                 draft: false,
                 prerelease: false,
               });
