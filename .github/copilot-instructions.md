@@ -38,7 +38,7 @@ Teams can freely create new packages following the `<domain>-plugins` or `<bu>-p
 - [ ] New packages have a valid `.claude-plugin/plugin.json` with `name`, `description`, `author`, `version`
 - [ ] New packages are registered in root `.claude-plugin/marketplace.json` under the `plugins` array
 - [ ] Package `name` in `plugin.json` matches the directory name under `plugins/`
-- [ ] Package `version` matches the `version` field in root `.claude-plugin/marketplace.json`
+- [ ] Plugin versions are independent — each `plugin.json` tracks its own version (auto-bumped by CI when its files change)
 
 ### Skill Frontmatter
 - [ ] YAML frontmatter is present and valid (delimited by `---`)

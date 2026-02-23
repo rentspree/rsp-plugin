@@ -17,6 +17,11 @@ on:
           - patch
           - minor
           - major
+      target:
+        description: "Target to bump (plugin name or 'all')"
+        required: true
+        default: "all"
+        type: string
 
 jobs:
   version-bump:
@@ -40,14 +45,6 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
-
-      - name: Get current version from marketplace.json
-        id: current_version
-        run: |
-          current_version=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['version'])")
-          echo "version=$current_version" >> $GITHUB_OUTPUT
-          echo "## Current Version" >> $GITHUB_STEP_SUMMARY
-          echo "Current version: **$current_version**" >> $GITHUB_STEP_SUMMARY
 
       - name: Determine version bump type from PR labels
         id: bump_type
@@ -80,67 +77,130 @@ jobs:
             fi
           fi
 
-      - name: Bump version
-        id: new_version
+      - name: Detect changed plugins and bump versions
+        id: bump_versions
         run: |
-          echo "## Version Calculation" >> $GITHUB_STEP_SUMMARY
-
-          python3 - <<EOF
+          python3 - <<'PYEOF'
           import json
           import glob
+          import subprocess
+          import os
 
-          current = "${{ steps.current_version.outputs.version }}"
           bump_type = "${{ steps.bump_type.outputs.type }}"
+          event_name = "${{ github.event_name }}"
+          dispatch_target = "${{ github.event.inputs.target }}" if event_name == "workflow_dispatch" else ""
+          merge_sha = "${{ github.event.pull_request.merge_commit_sha }}" if event_name != "workflow_dispatch" else ""
 
-          major, minor, patch = map(int, current.split('.'))
-          old_version = f"{major}.{minor}.{patch}"
+          def bump(version, bump_type):
+              major, minor, patch = map(int, version.split('.'))
+              if bump_type == 'major':
+                  return f"{major + 1}.0.0"
+              elif bump_type == 'minor':
+                  return f"{major}.{minor + 1}.0"
+              else:
+                  return f"{major}.{minor}.{patch + 1}"
 
-          if bump_type == 'major':
-              major += 1
-              minor = 0
-              patch = 0
-          elif bump_type == 'minor':
-              minor += 1
-              patch = 0
+          # Detect changed files from the merged PR
+          changed_files = []
+          if merge_sha:
+              result = subprocess.run(
+                  ['git', 'diff', '--name-only', f'{merge_sha}^', merge_sha],
+                  capture_output=True, text=True
+              )
+              changed_files = [f.strip() for f in result.stdout.strip().split('\n') if f.strip()]
+
+          # Determine which plugins changed
+          changed_plugins = set()
+          marketplace_changed = False
+
+          if event_name == "workflow_dispatch":
+              if dispatch_target == "all":
+                  # Bump everything
+                  marketplace_changed = True
+                  for path in glob.glob('plugins/*/.claude-plugin/plugin.json'):
+                      plugin_name = path.split('/')[1]
+                      changed_plugins.add(plugin_name)
+              else:
+                  # Bump specific plugin
+                  plugin_path = f'plugins/{dispatch_target}/.claude-plugin/plugin.json'
+                  if os.path.exists(plugin_path):
+                      changed_plugins.add(dispatch_target)
+                  else:
+                      marketplace_changed = True
           else:
-              patch += 1
+              for f in changed_files:
+                  if f.startswith('plugins/'):
+                      parts = f.split('/')
+                      if len(parts) >= 2:
+                          changed_plugins.add(parts[1])
+                  else:
+                      marketplace_changed = True
 
-          new_version = f"{major}.{minor}.{patch}"
-
-          # Update marketplace.json (single source of truth)
+          # Load marketplace.json
           with open('.claude-plugin/marketplace.json', 'r') as f:
               marketplace = json.load(f)
-          marketplace['version'] = new_version
-          for plugin_entry in marketplace.get('plugins', []):
-              plugin_entry['version'] = new_version
-          with open('.claude-plugin/marketplace.json', 'w') as f:
-              json.dump(marketplace, f, indent=2)
-              f.write('\n')
 
-          # Sync version to all plugin.json files under plugins/
-          for plugin_json_path in glob.glob('plugins/*/.claude-plugin/plugin.json'):
+          summary_lines = []
+          tags = []
+          old_marketplace_version = marketplace['version']
+
+          # Bump marketplace version if root files changed
+          if marketplace_changed:
+              new_marketplace_version = bump(old_marketplace_version, bump_type)
+              marketplace['version'] = new_marketplace_version
+              summary_lines.append(f"**Marketplace:** {old_marketplace_version} -> {new_marketplace_version}")
+              tags.append(f"v{new_marketplace_version}")
+          else:
+              summary_lines.append(f"**Marketplace:** {old_marketplace_version} (unchanged)")
+
+          # Bump each changed plugin
+          for plugin_name in sorted(changed_plugins):
+              plugin_json_path = f'plugins/{plugin_name}/.claude-plugin/plugin.json'
+              if not os.path.exists(plugin_json_path):
+                  continue
+
               with open(plugin_json_path, 'r') as f:
                   plugin = json.load(f)
+
+              old_version = plugin['version']
+              new_version = bump(old_version, bump_type)
               plugin['version'] = new_version
+
               with open(plugin_json_path, 'w') as f:
                   json.dump(plugin, f, indent=2)
                   f.write('\n')
 
-          with open('step_summary.txt', 'w') as f:
-              f.write(f"**Previous:** {old_version}\n")
-              f.write(f"**New:** {new_version}\n")
-              f.write(f"**Change:** {old_version} -> {new_version}\n")
-          EOF
+              # Sync version to marketplace.json plugin entry
+              for entry in marketplace.get('plugins', []):
+                  if entry['name'] == plugin_name:
+                      entry['version'] = new_version
 
-          cat step_summary.txt >> $GITHUB_STEP_SUMMARY
+              summary_lines.append(f"**{plugin_name}:** {old_version} -> {new_version}")
+              tags.append(f"{plugin_name}/v{new_version}")
 
-      - name: Get new version
-        id: get_new_version
-        run: |
-          new_version=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['version'])")
-          echo "version=$new_version" >> $GITHUB_OUTPUT
+          # Write updated marketplace.json
+          with open('.claude-plugin/marketplace.json', 'w') as f:
+              json.dump(marketplace, f, indent=2)
+              f.write('\n')
+
+          # Write outputs
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"marketplace_version={marketplace['version']}\n")
+              f.write(f"tags={','.join(tags)}\n")
+              f.write(f"has_changes={'true' if (marketplace_changed or changed_plugins) else 'false'}\n")
+
+          # Write summary
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write("## Version Bumps\n")
+              for line in summary_lines:
+                  f.write(f"{line}\n\n")
+              if tags:
+                  f.write(f"**Tags:** {', '.join(tags)}\n")
+
+          PYEOF
 
       - name: Get GitHub App User ID
+        if: steps.bump_versions.outputs.has_changes == 'true'
         id: get-user-id
         uses: actions/github-script@v7
         with:
@@ -152,47 +212,60 @@ jobs:
             return result.data.id
 
       - name: Config git
+        if: steps.bump_versions.outputs.has_changes == 'true'
         run: |
           git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
           git config user.email "${{ steps.get-user-id.outputs.result }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
-      - name: Commit version bump
+      - name: Commit and tag version bumps
+        if: steps.bump_versions.outputs.has_changes == 'true'
         run: |
           echo "## Git Operations" >> $GITHUB_STEP_SUMMARY
 
           git add .claude-plugin/marketplace.json
-          git add plugins/*/.claude-plugin/plugin.json
+          git add plugins/*/.claude-plugin/plugin.json 2>/dev/null || true
 
-          commit_message="[Automated] chore: bump version to ${{ steps.get_new_version.outputs.version }}"
-          tag_name="v${{ steps.get_new_version.outputs.version }}"
-
+          commit_message="[Automated] chore: bump versions"
           git commit -m "$commit_message"
-          git tag "$tag_name"
 
-          echo "**Commit:** $commit_message" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag created:** $tag_name" >> $GITHUB_STEP_SUMMARY
+          # Create tags
+          IFS=',' read -ra TAGS <<< "${{ steps.bump_versions.outputs.tags }}"
+          for tag in "${TAGS[@]}"; do
+            git tag "$tag"
+            echo "**Tag created:** $tag" >> $GITHUB_STEP_SUMMARY
+          done
 
           git push origin main
-          git push origin "$tag_name"
+          for tag in "${TAGS[@]}"; do
+            git push origin "$tag"
+          done
 
-          echo "**Status:** Successfully pushed commit and tag" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Successfully pushed commit and tags" >> $GITHUB_STEP_SUMMARY
 
-      - name: Create release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create releases
+        if: steps.bump_versions.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
         with:
-          tag_name: v${{ steps.get_new_version.outputs.version }}
-          release_name: v${{ steps.get_new_version.outputs.version }}
-          body: |
-            ## Changes
-            Merged PR: ${{ github.event.pull_request.title }} #${{ github.event.pull_request.number }}
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const tags = '${{ steps.bump_versions.outputs.tags }}'.split(',').filter(Boolean);
+            const prTitle = '${{ github.event.pull_request.title }}' || 'Manual dispatch';
+            const prNumber = '${{ github.event.pull_request.number }}' || 'N/A';
 
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.current_version.outputs.version }}...v${{ steps.get_new_version.outputs.version }}
-          draft: false
-          prerelease: false
+            for (const tag of tags) {
+              await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: tag,
+                body: `## Changes\nMerged PR: ${prTitle} #${prNumber}\n\n**Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/compare/main~1...${tag}`,
+                draft: false,
+                prerelease: false,
+              });
+            }
 
       - name: Workflow Summary
+        if: always()
         run: |
           echo "## Workflow Completed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -200,7 +273,5 @@ jobs:
           echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Old Version | ${{ steps.current_version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| New Version | ${{ steps.get_new_version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Bump Type | ${{ steps.bump_type.outputs.type }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Release | [v${{ steps.get_new_version.outputs.version }}](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_new_version.outputs.version }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tags | ${{ steps.bump_versions.outputs.tags }} |" >> $GITHUB_STEP_SUMMARY
