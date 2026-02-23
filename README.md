@@ -43,7 +43,6 @@ claude-plugins/
 │   │   ├── version-bump.yaml
 │   │   └── default-label.yaml
 │   └── copilot-instructions.md
-├── VERSION
 ├── AGENTS.md
 ├── CLAUDE.md
 ├── README.md
@@ -125,6 +124,15 @@ Any team can create a new plugin package. Use the naming convention `<domain>-pl
 2. Add component directories (`skills/`, `agents/`, `hooks/`)
 3. Register the plugin in `.claude-plugin/marketplace.json`
 4. Update the "Available Plugins" table above
+
+## Sharing Your Work
+
+When you create a new skill, agent, or hook, please share it with the team:
+
+1. Add a post to the **AI Tips & Tricks** page in Notion with a short description and usage examples
+2. Share it in **#coi-ai-coding** on Slack so others can try it out
+
+This helps the team discover useful plugins and gives visibility to your contribution.
 
 ## Contributing
 

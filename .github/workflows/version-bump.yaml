@@ -41,19 +41,13 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
-      - name: Get current version
+      - name: Get current version from marketplace.json
         id: current_version
         run: |
-          if [ -f VERSION ]; then
-            current_version=$(cat VERSION)
-            echo "version=$current_version" >> $GITHUB_OUTPUT
-            echo "## Current Version" >> $GITHUB_STEP_SUMMARY
-            echo "Current version: **$current_version**" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "version=0.1.0" >> $GITHUB_OUTPUT
-            echo "## Current Version" >> $GITHUB_STEP_SUMMARY
-            echo "No VERSION file found, initializing with: **0.1.0**" >> $GITHUB_STEP_SUMMARY
-          fi
+          current_version=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['version'])")
+          echo "version=$current_version" >> $GITHUB_OUTPUT
+          echo "## Current Version" >> $GITHUB_STEP_SUMMARY
+          echo "Current version: **$current_version**" >> $GITHUB_STEP_SUMMARY
 
       - name: Determine version bump type from PR labels
         id: bump_type
@@ -113,11 +107,7 @@ jobs:
 
           new_version = f"{major}.{minor}.{patch}"
 
-          # Update root VERSION file
-          with open('VERSION', 'w') as f:
-              f.write(new_version)
-
-          # Update marketplace.json version
+          # Update marketplace.json (single source of truth)
           with open('.claude-plugin/marketplace.json', 'r') as f:
               marketplace = json.load(f)
           marketplace['version'] = new_version
@@ -127,7 +117,7 @@ jobs:
               json.dump(marketplace, f, indent=2)
               f.write('\n')
 
-          # Update all plugin.json files under plugins/
+          # Sync version to all plugin.json files under plugins/
           for plugin_json_path in glob.glob('plugins/*/.claude-plugin/plugin.json'):
               with open(plugin_json_path, 'r') as f:
                   plugin = json.load(f)
@@ -147,7 +137,7 @@ jobs:
       - name: Get new version
         id: get_new_version
         run: |
-          new_version=$(cat VERSION)
+          new_version=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['version'])")
           echo "version=$new_version" >> $GITHUB_OUTPUT
 
       - name: Get GitHub App User ID
@@ -170,7 +160,7 @@ jobs:
         run: |
           echo "## Git Operations" >> $GITHUB_STEP_SUMMARY
 
-          git add VERSION .claude-plugin/marketplace.json
+          git add .claude-plugin/marketplace.json
           git add plugins/*/.claude-plugin/plugin.json
 
           commit_message="[Automated] chore: bump version to ${{ steps.get_new_version.outputs.version }}"

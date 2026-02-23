@@ -38,7 +38,7 @@ Teams can freely create new packages following the `<domain>-plugins` or `<bu>-p
 - [ ] New packages have a valid `.claude-plugin/plugin.json` with `name`, `description`, `author`, `version`
 - [ ] New packages are registered in root `.claude-plugin/marketplace.json` under the `plugins` array
 - [ ] Package `name` in `plugin.json` matches the directory name under `plugins/`
-- [ ] Package `version` matches the root `VERSION` file
+- [ ] Package `version` matches the `version` field in root `.claude-plugin/marketplace.json`
 
 ### Skill Frontmatter
 - [ ] YAML frontmatter is present and valid (delimited by `---`)
@@ -86,3 +86,7 @@ Teams can freely create new packages following the `<domain>-plugins` or `<bu>-p
 - [ ] `README.md` planned plugins table updated (status moved from "Planned" to "Available") for completed components
 - [ ] `marketplace.json` updated if adding a new plugin package
 - [ ] `AGENTS.md` "Available Plugin Packages" table updated if adding a new package
+
+### Sharing
+- [ ] New skill/agent posted to the **AI Tips & Tricks** Notion page
+- [ ] New skill/agent shared in **#coi-ai-coding** on Slack

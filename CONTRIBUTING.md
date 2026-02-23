@@ -212,3 +212,5 @@ model: haiku
 - [ ] README.md catalog table is updated (move from "Planned" to "Available")
 - [ ] No secrets or credentials in the plugin files
 - [ ] If adding a new package, marketplace.json is updated
+- [ ] New skill/agent shared on the **AI Tips & Tricks** Notion page
+- [ ] New skill/agent shared in **#coi-ai-coding** on Slack
