@@ -19,19 +19,25 @@ claude-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json             # Marketplace catalog (required)
 ├── plugins/
-│   └── rsp-plugins/                 # Plugin package
-│       ├── .claude-plugin/
-│       │   └── plugin.json          # Plugin metadata (required)
-│       ├── commands/
-│       │   └── example-command.md   # Slash commands
-│       ├── skills/
-│       │   └── example-skill/
-│       │       ├── SKILL.md         # Skills with @include support
-│       │       └── CONVENTIONS.md
-│       ├── agents/
-│       │   └── example-agent.md     # Autonomous agents
-│       └── hooks/
-│           └── example-hook.sh      # Lifecycle hook scripts
+│   ├── rsp-plugins/                 # Core RentSpree plugins
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json          # Plugin metadata (required)
+│   │   ├── commands/
+│   │   │   └── example-command.md   # Slash commands
+│   │   ├── skills/
+│   │   │   └── example-skill/
+│   │   │       ├── SKILL.md         # Skills with @include support
+│   │   │       └── CONVENTIONS.md
+│   │   ├── agents/
+│   │   │   └── example-agent.md     # Autonomous agents
+│   │   └── hooks/
+│   │       └── example-hook.sh      # Lifecycle hook scripts
+│   ├── infra-plugins/               # Infrastructure & DevOps plugins (planned)
+│   │   └── ...
+│   ├── data-plugins/                # Data engineering & analytics plugins (planned)
+│   │   └── ...
+│   └── design-plugins/              # Design system & UI plugins (planned)
+│       └── ...
 ├── .github/
 │   ├── workflows/
 │   │   ├── version-bump.yaml
@@ -46,9 +52,12 @@ claude-plugins/
 
 ## Available Plugins
 
-| Package | Description | Install |
-|---------|-------------|---------|
-| `rsp-plugins` | Core RentSpree plugins — skills, commands, agents, and hooks | `/plugin install rsp-plugins@rentspree` |
+| Package | Description | Status | Install |
+|---------|-------------|--------|---------|
+| `rsp-plugins` | Core RentSpree plugins — skills, commands, agents, and hooks | Available | `/plugin install rsp-plugins@rentspree` |
+| `infra-plugins` | Infrastructure & DevOps plugins | Planned | — |
+| `data-plugins` | Data engineering & analytics plugins | Planned | — |
+| `design-plugins` | Design system & UI plugins | Planned | — |
 
 ## Component Types
 
@@ -63,7 +72,11 @@ claude-plugins/
 
 Hooks are **not** invoked by the user or agent directly. They are shell scripts registered in Claude Code settings that run automatically in response to lifecycle events (e.g. after a tool is used). They receive event data as JSON on stdin and can provide warnings or feedback.
 
-## Planned Plugins (rsp-plugins)
+## Roadmap
+
+New skills, commands, agents, and hooks will be gradually added based on the most upvoted ideas from the **AI Tips & Tricks** channel. Have a workflow you'd like automated? Upvote it there and the team will prioritize it.
+
+### Planned Plugins (rsp-plugins)
 
 | Name | Type | Status | Notion |
 |------|------|--------|--------|
