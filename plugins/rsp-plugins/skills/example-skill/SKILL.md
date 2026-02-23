@@ -1,6 +1,6 @@
 ---
 name: example-skill
-description: An example skill that demonstrates the skill file format and @include usage.
+description: An example skill that demonstrates the skill file format, supporting files, and @include usage.
 allowed-tools: Read, Glob, Grep, Write, Edit
 model: sonnet
 ---
@@ -19,3 +19,7 @@ When invoked, do the following:
 2. Search the codebase for files matching the user's query.
 3. Summarize your findings following the conventions in the included file.
 4. If the user asked for changes, apply them using the Edit or Write tools.
+
+## Additional resources
+
+- For output format and code style rules, see [CONVENTIONS.md](CONVENTIONS.md)

@@ -1,7 +1,9 @@
 ---
-description: An example command that greets the user and summarizes the current project.
+name: example-command
+description: Greets the user and summarizes the current project. Use when someone wants a quick project overview.
 allowed-tools: Read, Glob, Grep
 argument-hint: "[name]"
+disable-model-invocation: true
 ---
 
 # Example Command

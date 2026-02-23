@@ -22,12 +22,12 @@ claude-plugins/
 │   ├── rsp-plugins/                 # Core RentSpree plugins
 │   │   ├── .claude-plugin/
 │   │   │   └── plugin.json          # Plugin metadata (required)
-│   │   ├── commands/
-│   │   │   └── example-command.md   # Slash commands
 │   │   ├── skills/
-│   │   │   └── example-skill/
-│   │   │       ├── SKILL.md         # Skills with @include support
-│   │   │       └── CONVENTIONS.md
+│   │   │   ├── example-skill/
+│   │   │   │   ├── SKILL.md         # Skill with supporting files
+│   │   │   │   └── CONVENTIONS.md   # Supporting file (@include)
+│   │   │   └── example-command/
+│   │   │       └── SKILL.md         # User-invoked skill (disable-model-invocation)
 │   │   ├── agents/
 │   │   │   └── example-agent.md     # Autonomous agents
 │   │   └── hooks/
@@ -54,19 +54,45 @@ claude-plugins/
 
 | Package | Description | Status | Install |
 |---------|-------------|--------|---------|
-| `rsp-plugins` | Core RentSpree plugins — skills, commands, agents, and hooks | Available | `/plugin install rsp-plugins@rentspree` |
+| `rsp-plugins` | Core RentSpree plugins — skills, agents, and hooks | Available | `/plugin install rsp-plugins@rentspree` |
 | `infra-plugins` | Infrastructure & DevOps plugins | Planned | — |
 | `data-plugins` | Data engineering & analytics plugins | Planned | — |
 | `design-plugins` | Design system & UI plugins | Planned | — |
+
+Teams can freely create new plugin packages following the `<domain>-plugins` or `<bu>-plugins` naming convention (e.g. `payment-plugins`, `screening-plugins`). See [Adding a New Plugin Package](#adding-a-new-plugin-package).
 
 ## Component Types
 
 | Type | Location | Trigger | Description |
 |------|----------|---------|-------------|
-| **Command** | `commands/*.md` | User runs `/command-name` | One-shot prompts with tool access |
-| **Skill** | `skills/*/SKILL.md` | User runs `/skill-name` or agent invokes | Reusable prompt modules, support `@include` |
+| **Skill** | `skills/<name>/SKILL.md` | User runs `/skill-name`, or Claude invokes automatically | Reusable prompt modules with supporting files |
 | **Agent** | `agents/*.md` | Spawned via `Task` tool | Autonomous sub-agents with scoped tools |
 | **Hook** | `hooks/*.sh` | Lifecycle events (e.g. PostToolUse) | Shell scripts that react to Claude Code events |
+
+> **Note:** Custom slash commands have been merged into skills. A skill with `disable-model-invocation: true` behaves like a manual command — only triggered by `/skill-name`. Existing `commands/*.md` files still work but new components should use the skills format.
+
+### Skill types
+
+Skills can serve two purposes:
+
+- **Reference skills** — conventions, patterns, domain knowledge that Claude applies to your work. Claude loads these automatically when relevant.
+- **Task skills** — step-by-step workflows (deploy, commit, generate). Set `disable-model-invocation: true` so they only run when you invoke `/skill-name`.
+
+### Skill directory layout
+
+Each skill is a directory with `SKILL.md` as the entrypoint and optional supporting files:
+
+```
+my-skill/
+├── SKILL.md           # Main instructions (required)
+├── template.md        # Template for Claude to fill in
+├── examples/
+│   └── sample.md      # Example output showing expected format
+└── scripts/
+    └── validate.sh    # Script Claude can execute
+```
+
+Keep `SKILL.md` under 500 lines. Move detailed reference material to separate files and reference them from `SKILL.md`.
 
 ### How hooks differ
 
@@ -74,7 +100,7 @@ Hooks are **not** invoked by the user or agent directly. They are shell scripts 
 
 ## Roadmap
 
-New skills, commands, agents, and hooks will be gradually added based on the most upvoted ideas from the **AI Tips & Tricks** channel. Have a workflow you'd like automated? Upvote it there and the team will prioritize it.
+New skills, agents, and hooks will be gradually added based on the most upvoted ideas from the **AI Tips & Tricks** channel. Have a workflow you'd like automated? Upvote it there and the team will prioritize it.
 
 ### Planned Plugins (rsp-plugins)
 
@@ -85,18 +111,18 @@ New skills, commands, agents, and hooks will be gradually added based on the mos
 | `/clip` | Skill | Planned | [link](https://www.notion.so/30c3b0bdee3e80fd9cf5c56c9bc02367) |
 | `/adr` | Skill | Planned | — |
 | `/tic-master` | Skill | Planned | — |
-| `morning-brew` | Command | Planned | — |
-| `ticket` | Command | Planned | [link](https://www.notion.so/2f13b0bdee3e804ebf52d5c84cf1e8d1) |
+| `/morning-brew` | Skill | Planned | — |
+| `/ticket` | Skill | Planned | [link](https://www.notion.so/2f13b0bdee3e804ebf52d5c84cf1e8d1) |
 | `committer` | Agent | Planned | — |
 | `mds-updater` | Agent | Planned | — |
 | Auto-Format/Lint | Hook | Planned | [link](https://www.notion.so/30a3b0bdee3e8029b34ac9617218373a) |
 
 ## Adding a New Plugin Package
 
-To add a new plugin package (e.g. `infra-plugins`):
+Any team can create a new plugin package. Use the naming convention `<domain>-plugins` or `<bu>-plugins` (e.g. `payment-plugins`, `screening-plugins`, `infra-plugins`).
 
-1. Create `plugins/infra-plugins/.claude-plugin/plugin.json`
-2. Add component directories (`commands/`, `skills/`, `agents/`, `hooks/`)
+1. Create `plugins/<name>/.claude-plugin/plugin.json`
+2. Add component directories (`skills/`, `agents/`, `hooks/`)
 3. Register the plugin in `.claude-plugin/marketplace.json`
 4. Update the "Available Plugins" table above
 

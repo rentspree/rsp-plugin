@@ -6,6 +6,8 @@
 
 `claude-plugins` is a Claude Code plugin marketplace containing multiple plugin packages. Each package lives under `plugins/<name>/` and contains markdown prompt files and shell scripts. No application code, build system, or dependencies.
 
+> **Note:** Custom commands have been merged into skills. There is no separate `commands/` directory. Skills with `disable-model-invocation: true` behave as manual commands.
+
 ### Available Packages
 
 | Package | Status |
@@ -15,19 +17,22 @@
 | `data-plugins` | Planned |
 | `design-plugins` | Planned |
 
+Teams can freely create new packages following the `<domain>-plugins` or `<bu>-plugins` naming convention.
+
 ## PR Review Checklist
 
 ### Marketplace Structure
 - [ ] No components placed at root level — all components must live inside `plugins/<package>/`
 - [ ] No new top-level directories created (only `plugins/`, `.claude-plugin/`, `.github/` exist at root)
 - [ ] Plugin package follows the standard layout: `plugins/<package>/.claude-plugin/plugin.json` + component directories
+- [ ] Plugin package name follows `<domain>-plugins` or `<bu>-plugins` naming convention
 
 ### File Location
-- [ ] Commands are in `plugins/<package>/commands/*.md`
 - [ ] Skills are in `plugins/<package>/skills/<name>/SKILL.md`
 - [ ] Agents are in `plugins/<package>/agents/*.md`
 - [ ] Hooks are in `plugins/<package>/hooks/*.sh`
-- [ ] No component files placed outside these directories (e.g. not in root `commands/`, `skills/`, `agents/`, `hooks/`)
+- [ ] No `commands/` directory used — commands should be skills with `disable-model-invocation: true`
+- [ ] No component files placed outside expected directories
 
 ### Plugin Package Metadata
 - [ ] New packages have a valid `.claude-plugin/plugin.json` with `name`, `description`, `author`, `version`
@@ -35,19 +40,28 @@
 - [ ] Package `name` in `plugin.json` matches the directory name under `plugins/`
 - [ ] Package `version` matches the root `VERSION` file
 
-### Frontmatter
+### Skill Frontmatter
 - [ ] YAML frontmatter is present and valid (delimited by `---`)
-- [ ] Required fields included for the component type:
-  - Commands: `description`, `allowed-tools`
-  - Skills: `name`, `description`, `allowed-tools`, `model`
-  - Agents: `name`, `description`, `tools`, `model`
-- [ ] `allowed-tools` or `tools` field specifies only necessary tools (principle of least privilege)
+- [ ] `description` is provided and explains when Claude should use the skill
+- [ ] `allowed-tools` specifies only necessary tools (principle of least privilege)
 - [ ] `model` field uses a valid value (`sonnet`, `haiku`, `opus`) if specified
+- [ ] `disable-model-invocation: true` is set for task/command-style skills with side effects (deploy, commit, send messages)
+- [ ] `user-invocable: false` is set for background knowledge skills that shouldn't appear in `/` menu
+- [ ] `context: fork` and `agent` field are used correctly if skill runs in a subagent
+
+### Skill Structure
+- [ ] `SKILL.md` is under 500 lines — detailed reference material moved to supporting files
+- [ ] Supporting files are referenced from `SKILL.md` so Claude knows when to load them
+- [ ] `` !`command` `` dynamic context injection is used correctly (commands run before skill is sent to Claude)
+
+### Agent Frontmatter
+- [ ] Required fields: `name`, `description`, `tools`
+- [ ] `tools` field specifies only necessary tools
+- [ ] Read-only agents do not have Write/Edit tools
 
 ### Naming Conventions
 - [ ] All file and directory names are **lowercase kebab-case**
-- [ ] Plugin package names are kebab-case (e.g. `rsp-plugins`, `infra-plugins`)
-- [ ] Command files: `<command-name>.md`
+- [ ] Plugin package names follow `<domain>-plugins` or `<bu>-plugins` convention
 - [ ] Skill directories: `<skill-name>/SKILL.md`
 - [ ] Agent files: `<agent-name>.md`
 - [ ] Hook files: `<hook-name>.sh`
@@ -64,9 +78,8 @@
 ### Convention Guards
 - [ ] No application code, libraries, or services added to this repo
 - [ ] No build system, package manager, or test framework introduced
-- [ ] Skills use `@include` for large prompts instead of monolithic files
 - [ ] Each component has a single, clear responsibility
-- [ ] Agents specify tool constraints (read-only agents should not have Write/Edit tools)
+- [ ] No new `commands/` directories — use skills instead
 
 ### Documentation
 - [ ] `README.md` "Available Plugins" table updated if adding a new package
